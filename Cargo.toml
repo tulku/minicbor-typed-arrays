@@ -1,0 +1,19 @@
+[package]
+name = "minicbor-typed-arrays"
+authors = ["Lucas Chiesa <lucas.chiesa@gmail.com>", "Joaquin de Andres <xcancerberox@gmail.com>"]
+description = "RFC8746 typed arrays implementation for minicbor."
+version = "0.1.0"
+license = "BlueOak-1.0.0"
+edition = "2021"
+
+[dependencies]
+minicbor = { version = "0.20.0" }
+half = { version = "1", default-features = false, optional = true }
+
+[dev-dependencies]
+test-case = "*"
+minicbor = { version = "0.20.0", features = ["std"] }
+
+[features]
+default = ["half"]
+half = ["minicbor/half", "dep:half"]
