@@ -3,12 +3,14 @@ mod typed_array;
 mod typed_array_context;
 mod typed_array_tag;
 
+pub use crate::typed_array::TypedArray;
+pub use crate::typed_array::TypedArrayValue;
 pub use crate::typed_array_context::TypedArrayContext;
-use endianness::EndiannessAware;
+pub use endianness::EndiannessAware;
 #[cfg(feature = "half")]
 use half::f16;
 use minicbor::{self, data::Tag, decode::Error};
-use typed_array::TypedArray;
+pub use typed_array_tag::Endianness;
 use typed_array_tag::{tag_to_array_type, ArrayTypeLength, FloatLength, IntegerLength};
 
 impl<C> minicbor::Encode<C> for TypedArray
