@@ -23,21 +23,7 @@ where
         ctx: &mut C,
     ) -> Result<(), minicbor::encode::Error<W::Error>> {
         let tag = Tag::Unassigned(self.tag(ctx.desired_endianness()));
-        let output = match self {
-            TypedArray::U8(array) => ctx.to_vec8(array),
-            TypedArray::U16(array) => ctx.to_vec8(array),
-            TypedArray::U32(array) => ctx.to_vec8(array),
-            TypedArray::U64(array) => ctx.to_vec8(array),
-            TypedArray::I8(array) => ctx.to_vec8(array),
-            TypedArray::I16(array) => ctx.to_vec8(array),
-            TypedArray::I32(array) => ctx.to_vec8(array),
-            TypedArray::I64(array) => ctx.to_vec8(array),
-            #[cfg(feature = "half")]
-            TypedArray::F16(array) => ctx.to_vec8(array),
-            TypedArray::F32(array) => ctx.to_vec8(array),
-            TypedArray::F64(array) => ctx.to_vec8(array),
-        };
-
+        let output = ctx.to_vec8(self.as_ref());
         e.tag(tag)?.bytes(&output)?.ok()
     }
 }
