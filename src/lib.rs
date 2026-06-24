@@ -12,11 +12,11 @@ mod typed_array;
 
 pub use element::{Element, ElementType, Scalar};
 pub use endianness::Endianness;
-pub use typed_array::{InvalidLength, Iter, TypedArray, TypedArrayRef};
-#[cfg(feature = "alloc")]
-pub use typed_array::OwnedTypedArray;
 #[cfg(feature = "half")]
 pub use half;
+#[cfg(feature = "alloc")]
+pub use typed_array::OwnedTypedArray;
+pub use typed_array::{InvalidLength, Iter, TypedArray, TypedArrayRef};
 
 use crate::tag::element_type_from_tag;
 

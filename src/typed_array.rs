@@ -1,6 +1,6 @@
-use crate::element::{Element, ElementType};
 #[cfg(feature = "alloc")]
 use crate::element::Scalar;
+use crate::element::{Element, ElementType};
 use crate::endianness::Endianness;
 use core::fmt;
 
@@ -110,7 +110,7 @@ impl TypedArray<alloc::vec::Vec<u8>> {
     /// Build an owned typed array from native scalar values, laying them out in
     /// the requested endianness.
     pub fn from_slice<T: Scalar>(values: &[T], endianness: Endianness) -> Self {
-        let mut bytes = alloc::vec::Vec::with_capacity(values.len() * core::mem::size_of::<T>());
+        let mut bytes = alloc::vec::Vec::with_capacity(core::mem::size_of_val(values));
         for &v in values {
             match endianness {
                 Endianness::Big => v.write_be(&mut bytes),
@@ -168,8 +168,7 @@ mod tests {
 
     #[test]
     fn new_rejects_misaligned_length() {
-        let err =
-            TypedArray::new(ElementType::U16, Endianness::Big, &[0u8, 1, 2][..]).unwrap_err();
+        let err = TypedArray::new(ElementType::U16, Endianness::Big, &[0u8, 1, 2][..]).unwrap_err();
         assert_eq!(err, InvalidLength { len: 3, width: 2 });
     }
 
@@ -191,8 +190,12 @@ mod tests {
 
     #[test]
     fn iter_decodes_elements() {
-        let a = TypedArray::new(ElementType::U16, Endianness::Big, &[0x12, 0x34, 0x00, 0x01][..])
-            .unwrap();
+        let a = TypedArray::new(
+            ElementType::U16,
+            Endianness::Big,
+            &[0x12, 0x34, 0x00, 0x01][..],
+        )
+        .unwrap();
         let got: alloc::vec::Vec<Element> = a.iter().collect();
         assert_eq!(got, alloc::vec![Element::U16(0x1234), Element::U16(0x0001)]);
         assert_eq!(a.iter().len(), 2);

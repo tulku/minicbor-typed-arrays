@@ -74,13 +74,20 @@ fn roundtrip_f16() {
 fn iter_values() {
     let a = TypedArray::from_slice::<i16>(&[-1, 2, -3], Endianness::Big);
     let got: Vec<Element> = a.iter().collect();
-    assert_eq!(got, vec![Element::I16(-1), Element::I16(2), Element::I16(-3)]);
+    assert_eq!(
+        got,
+        vec![Element::I16(-1), Element::I16(2), Element::I16(-3)]
+    );
 }
 
 #[test]
 fn u8_clamped_round_trips_via_new() {
-    let array =
-        TypedArray::new(ElementType::U8Clamped, Endianness::Big, vec![250u8, 251, 252]).unwrap();
+    let array = TypedArray::new(
+        ElementType::U8Clamped,
+        Endianness::Big,
+        vec![250u8, 251, 252],
+    )
+    .unwrap();
     let mut buf = Vec::new();
     minicbor::encode(&array, &mut buf).unwrap();
     let decoded: OwnedTypedArray = minicbor::decode(&buf).unwrap();

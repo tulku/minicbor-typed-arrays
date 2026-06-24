@@ -192,11 +192,23 @@ mod tests {
     #[test]
     fn tag_maps_endianness() {
         use minicbor::data::IanaTag;
-        assert_eq!(ElementType::U8.tag(Endianness::Little), IanaTag::TypedArrayU8);
+        assert_eq!(
+            ElementType::U8.tag(Endianness::Little),
+            IanaTag::TypedArrayU8
+        );
         assert_eq!(ElementType::U8.tag(Endianness::Big), IanaTag::TypedArrayU8);
-        assert_eq!(ElementType::U32.tag(Endianness::Big), IanaTag::TypedArrayU32B);
-        assert_eq!(ElementType::U32.tag(Endianness::Little), IanaTag::TypedArrayU32L);
-        assert_eq!(ElementType::F64.tag(Endianness::Big), IanaTag::TypedArrayF64B);
+        assert_eq!(
+            ElementType::U32.tag(Endianness::Big),
+            IanaTag::TypedArrayU32B
+        );
+        assert_eq!(
+            ElementType::U32.tag(Endianness::Little),
+            IanaTag::TypedArrayU32L
+        );
+        assert_eq!(
+            ElementType::F64.tag(Endianness::Big),
+            IanaTag::TypedArrayF64B
+        );
     }
 
     #[test]

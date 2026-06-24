@@ -83,10 +83,7 @@ mod tests {
     fn f16_round_trips() {
         for end in [Endianness::Big, Endianness::Little] {
             let tag = ElementType::F16.tag(end).tag();
-            assert_eq!(
-                element_type_from_tag(tag).unwrap(),
-                (ElementType::F16, end)
-            );
+            assert_eq!(element_type_from_tag(tag).unwrap(), (ElementType::F16, end));
         }
     }
 
