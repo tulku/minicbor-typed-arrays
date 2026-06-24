@@ -1,224 +1,215 @@
-use crate::typed_array_tag::{typed_array_tag, Endianness, FloatLength, IntegerLength};
+#[cfg(feature = "alloc")]
+use crate::element::Scalar;
+use crate::element::{Element, ElementType, Endianness};
+use core::fmt;
 
-#[cfg(feature = "half")]
-use half::f16;
-
-use crate::typed_array_tag::ArrayTypeLength;
-use std::iter::Iterator;
-
-#[derive(PartialEq, Debug, Clone)]
-pub enum TypedArray {
-    U8(Vec<u8>),
-    U16(Vec<u16>),
-    U32(Vec<u32>),
-    U64(Vec<u64>),
-    I8(Vec<i8>),
-    I16(Vec<i16>),
-    I32(Vec<i32>),
-    I64(Vec<i64>),
-    #[cfg(feature = "half")]
-    F16(Vec<f16>),
-    F32(Vec<f32>),
-    F64(Vec<f64>),
+/// Error returned by [`TypedArray::new`] when the byte payload length is not a
+/// multiple of the element width.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct InvalidLength {
+    pub len: usize,
+    pub width: usize,
 }
 
-macro_rules! typed_array_from_iter {
-    ($($t:ty, $v:ident),*) => {
-        $(
-            impl FromIterator<$t> for TypedArray {
-                fn from_iter<T: IntoIterator<Item = $t>>(iter: T) -> Self {
-                    let mut inner = Vec::new();
-                    for i in iter {
-                        inner.push(i);
-                    }
-                    TypedArray::$v(inner)
-                }
-            }
-        )*
-    };
+impl fmt::Display for InvalidLength {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "byte length {} is not a multiple of element width {}",
+            self.len, self.width
+        )
+    }
 }
 
-typed_array_from_iter!(
-    u8, U8, u16, U16, u32, U32, u64, U64, i8, I8, i16, I16, i32, I32, i64, I64, f32, F32, f64, F64
-);
-#[cfg(feature = "half")]
-typed_array_from_iter!(f16, F16);
+#[cfg(feature = "std")]
+impl std::error::Error for InvalidLength {}
 
-impl TypedArray {
-    pub fn tag(&self, endianness: Endianness) -> u64 {
-        match self {
-            TypedArray::U8(_) => {
-                typed_array_tag(ArrayTypeLength::UInt(IntegerLength::I8), endianness)
-            }
-            TypedArray::U16(_) => {
-                typed_array_tag(ArrayTypeLength::UInt(IntegerLength::I16), endianness)
-            }
-            TypedArray::U32(_) => {
-                typed_array_tag(ArrayTypeLength::UInt(IntegerLength::I32), endianness)
-            }
-            TypedArray::U64(_) => {
-                typed_array_tag(ArrayTypeLength::UInt(IntegerLength::I64), endianness)
-            }
-            TypedArray::I8(_) => {
-                typed_array_tag(ArrayTypeLength::SInt(IntegerLength::I8), endianness)
-            }
-            TypedArray::I16(_) => {
-                typed_array_tag(ArrayTypeLength::SInt(IntegerLength::I16), endianness)
-            }
-            TypedArray::I32(_) => {
-                typed_array_tag(ArrayTypeLength::SInt(IntegerLength::I32), endianness)
-            }
-            TypedArray::I64(_) => {
-                typed_array_tag(ArrayTypeLength::SInt(IntegerLength::I64), endianness)
-            }
-            #[cfg(feature = "half")]
-            TypedArray::F16(_) => {
-                typed_array_tag(ArrayTypeLength::Float(FloatLength::F16), endianness)
-            }
-            TypedArray::F32(_) => {
-                typed_array_tag(ArrayTypeLength::Float(FloatLength::F32), endianness)
-            }
-            TypedArray::F64(_) => {
-                typed_array_tag(ArrayTypeLength::Float(FloatLength::F64), endianness)
-            }
+/// An RFC8746 typed array: a homogeneous numeric array stored as its raw byte
+/// payload plus an element type and endianness.
+///
+/// Generic over the byte storage `C`:
+/// - [`TypedArrayRef`] (`&[u8]`) borrows the payload — no allocator required.
+/// - [`OwnedTypedArray`] (`Vec<u8>`) owns it (requires the `alloc` feature).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TypedArray<C> {
+    element_type: ElementType,
+    endianness: Endianness,
+    bytes: C,
+}
+
+/// A typed array borrowing its byte payload (no allocation).
+pub type TypedArrayRef<'b> = TypedArray<&'b [u8]>;
+
+/// A typed array owning its byte payload.
+#[cfg(feature = "alloc")]
+pub type OwnedTypedArray = TypedArray<alloc::vec::Vec<u8>>;
+
+impl<C: AsRef<[u8]>> TypedArray<C> {
+    /// Wrap a raw RFC8746 byte payload.
+    ///
+    /// `bytes.len()` must be a multiple of `element_type.width()`. Single-byte
+    /// element types canonicalize `endianness` to [`Endianness::Big`].
+    pub fn new(
+        element_type: ElementType,
+        endianness: Endianness,
+        bytes: C,
+    ) -> Result<Self, InvalidLength> {
+        let width = element_type.width();
+        let len = bytes.as_ref().len();
+        if len % width != 0 {
+            return Err(InvalidLength { len, width });
         }
+        // Endianness is meaningless for single-byte elements, and their CBOR
+        // tag (`TypedArrayU8`/`U8Clamped`/`I8`) carries no byte order. Normalize
+        // to a canonical value so that `endianness()` and `PartialEq` are stable
+        // across an encode/decode round-trip (decoding always yields `Big`).
+        let endianness = if width == 1 {
+            Endianness::Big
+        } else {
+            endianness
+        };
+        Ok(Self {
+            element_type,
+            endianness,
+            bytes,
+        })
     }
 
+    pub fn element_type(&self) -> ElementType {
+        self.element_type
+    }
+
+    pub fn endianness(&self) -> Endianness {
+        self.endianness
+    }
+
+    /// The raw byte payload.
+    pub fn as_bytes(&self) -> &[u8] {
+        self.bytes.as_ref()
+    }
+
+    /// Number of elements.
     pub fn len(&self) -> usize {
-        match self {
-            TypedArray::U8(array) => array.len(),
-            TypedArray::U16(array) => array.len(),
-            TypedArray::U32(array) => array.len(),
-            TypedArray::U64(array) => array.len(),
-            TypedArray::I8(array) => array.len(),
-            TypedArray::I16(array) => array.len(),
-            TypedArray::I32(array) => array.len(),
-            TypedArray::I64(array) => array.len(),
-            #[cfg(feature = "half")]
-            TypedArray::F16(array) => array.len(),
-            TypedArray::F32(array) => array.len(),
-            TypedArray::F64(array) => array.len(),
-        }
+        self.bytes.as_ref().len() / self.element_type.width()
     }
 
     pub fn is_empty(&self) -> bool {
-        match self {
-            TypedArray::U8(array) => array.is_empty(),
-            TypedArray::U16(array) => array.is_empty(),
-            TypedArray::U32(array) => array.is_empty(),
-            TypedArray::U64(array) => array.is_empty(),
-            TypedArray::I8(array) => array.is_empty(),
-            TypedArray::I16(array) => array.is_empty(),
-            TypedArray::I32(array) => array.is_empty(),
-            TypedArray::I64(array) => array.is_empty(),
-            #[cfg(feature = "half")]
-            TypedArray::F16(array) => array.is_empty(),
-            TypedArray::F32(array) => array.is_empty(),
-            TypedArray::F64(array) => array.is_empty(),
-        }
+        self.bytes.as_ref().is_empty()
     }
 
-    pub fn iter(&self) -> TypedArrayIterator {
-        TypedArrayIterator {
-            array: self,
-            index: 0,
+    /// Iterate the elements, decoding each lazily.
+    pub fn iter(&self) -> Iter<'_> {
+        Iter {
+            element_type: self.element_type,
+            endianness: self.endianness,
+            bytes: self.bytes.as_ref(),
+            pos: 0,
         }
     }
 }
 
-#[derive(Debug, PartialEq, Copy, Clone)]
-pub enum TypedArrayValue {
-    U8(u8),
-    U16(u16),
-    U32(u32),
-    U64(u64),
-    I8(i8),
-    I16(i16),
-    I32(i32),
-    I64(i64),
-    #[cfg(feature = "half")]
-    F16(f16),
-    F32(f32),
-    F64(f64),
-}
-
-impl TypedArrayValue {
-    pub fn to_f64(self) -> f64 {
-        match self {
-            TypedArrayValue::U8(v) => v as f64,
-            TypedArrayValue::U16(v) => v as f64,
-            TypedArrayValue::U32(v) => v as f64,
-            TypedArrayValue::U64(v) => v as f64,
-            TypedArrayValue::I8(v) => v as f64,
-            TypedArrayValue::I16(v) => v as f64,
-            TypedArrayValue::I32(v) => v as f64,
-            TypedArrayValue::I64(v) => v as f64,
-            #[cfg(feature = "half")]
-            TypedArrayValue::F16(v) => f64::from(v),
-            TypedArrayValue::F32(v) => f64::from(v),
-            TypedArrayValue::F64(v) => v,
+#[cfg(feature = "alloc")]
+impl TypedArray<alloc::vec::Vec<u8>> {
+    /// Build an owned typed array from native scalar values, laying them out in
+    /// the requested endianness.
+    pub fn from_slice<T: Scalar>(values: &[T], endianness: Endianness) -> Self {
+        let mut bytes = alloc::vec::Vec::with_capacity(core::mem::size_of_val(values));
+        for &v in values {
+            match endianness {
+                Endianness::Big => v.write_be(&mut bytes),
+                Endianness::Little => v.write_le(&mut bytes),
+            }
         }
-    }
-
-    pub fn to_i64(self) -> i64 {
-        match self {
-            TypedArrayValue::U8(v) => v as i64,
-            TypedArrayValue::U16(v) => v as i64,
-            TypedArrayValue::U32(v) => v as i64,
-            TypedArrayValue::U64(v) => v as i64,
-            TypedArrayValue::I8(v) => v as i64,
-            TypedArrayValue::I16(v) => v as i64,
-            TypedArrayValue::I32(v) => v as i64,
-            TypedArrayValue::I64(v) => v,
-            #[cfg(feature = "half")]
-            TypedArrayValue::F16(v) => f64::from(v) as i64,
-            TypedArrayValue::F32(v) => v as i64,
-            TypedArrayValue::F64(v) => v as i64,
-        }
+        // Length is always a multiple of the width here, so `new` cannot fail.
+        TypedArray::new(T::ELEMENT_TYPE, endianness, bytes)
+            .expect("from_slice produces valid length")
     }
 }
 
-pub struct TypedArrayIterator<'a> {
-    array: &'a TypedArray,
-    index: usize,
+/// Lazy iterator over a [`TypedArray`]'s elements.
+pub struct Iter<'a> {
+    element_type: ElementType,
+    endianness: Endianness,
+    bytes: &'a [u8],
+    pos: usize,
 }
 
-impl<'a> Iterator for TypedArrayIterator<'a> {
-    type Item = TypedArrayValue;
+impl<'a> Iterator for Iter<'a> {
+    type Item = Element;
 
-    fn next(&mut self) -> Option<Self::Item> {
-        let value = match self.array {
-            TypedArray::U8(array) => array.get(self.index).map(|&v| TypedArrayValue::U8(v)),
-            TypedArray::U16(array) => array.get(self.index).map(|&v| TypedArrayValue::U16(v)),
-            TypedArray::U32(array) => array.get(self.index).map(|&v| TypedArrayValue::U32(v)),
-            TypedArray::U64(array) => array.get(self.index).map(|&v| TypedArrayValue::U64(v)),
-            TypedArray::I8(array) => array.get(self.index).map(|&v| TypedArrayValue::I8(v)),
-            TypedArray::I16(array) => array.get(self.index).map(|&v| TypedArrayValue::I16(v)),
-            TypedArray::I32(array) => array.get(self.index).map(|&v| TypedArrayValue::I32(v)),
-            TypedArray::I64(array) => array.get(self.index).map(|&v| TypedArrayValue::I64(v)),
-            #[cfg(feature = "half")]
-            TypedArray::F16(array) => array.get(self.index).map(|&v| TypedArrayValue::F16(v)),
-            TypedArray::F32(array) => array.get(self.index).map(|&v| TypedArrayValue::F32(v)),
-            TypedArray::F64(array) => array.get(self.index).map(|&v| TypedArrayValue::F64(v)),
-        };
-        self.index += 1;
-        value
+    fn next(&mut self) -> Option<Element> {
+        let width = self.element_type.width();
+        let end = self.pos.checked_add(width)?;
+        if end > self.bytes.len() {
+            return None;
+        }
+        let chunk = &self.bytes[self.pos..end];
+        self.pos = end;
+        Some(self.element_type.decode_chunk(chunk, self.endianness))
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = (self.bytes.len() - self.pos) / self.element_type.width();
+        (remaining, Some(remaining))
+    }
+}
+
+impl ExactSizeIterator for Iter<'_> {}
+
+impl<'a, C: AsRef<[u8]>> IntoIterator for &'a TypedArray<C> {
+    type Item = Element;
+    type IntoIter = Iter<'a>;
+
+    fn into_iter(self) -> Iter<'a> {
+        self.iter()
     }
 }
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
 
     #[test]
-    fn test_typed_array_iter() {
-        let array = TypedArray::U8(vec![1, 2, 3, 4]);
-        let mut iter = array.iter();
-        assert_eq!(iter.next(), Some(TypedArrayValue::U8(1)));
-        assert_eq!(iter.next(), Some(TypedArrayValue::U8(2)));
-        assert_eq!(iter.next(), Some(TypedArrayValue::U8(3)));
-        assert_eq!(iter.next(), Some(TypedArrayValue::U8(4)));
-        assert_eq!(iter.next(), None);
+    fn new_rejects_misaligned_length() {
+        let err = TypedArray::new(ElementType::U16, Endianness::Big, &[0u8, 1, 2][..]).unwrap_err();
+        assert_eq!(err, InvalidLength { len: 3, width: 2 });
+    }
+
+    #[test]
+    fn single_byte_endianness_is_canonicalized() {
+        let a = TypedArray::new(ElementType::U8, Endianness::Little, &[1u8, 2][..]).unwrap();
+        assert_eq!(a.endianness(), Endianness::Big);
+    }
+
+    #[test]
+    fn len_and_empty() {
+        let a = TypedArray::new(ElementType::U32, Endianness::Big, &[0u8; 8][..]).unwrap();
+        assert_eq!(a.len(), 2);
+        assert!(!a.is_empty());
+        let e = TypedArray::new(ElementType::U32, Endianness::Big, &[][..]).unwrap();
+        assert!(e.is_empty());
+        assert_eq!(e.len(), 0);
+    }
+
+    #[test]
+    fn iter_decodes_elements() {
+        let a = TypedArray::new(
+            ElementType::U16,
+            Endianness::Big,
+            &[0x12, 0x34, 0x00, 0x01][..],
+        )
+        .unwrap();
+        let got: alloc::vec::Vec<Element> = a.iter().collect();
+        assert_eq!(got, alloc::vec![Element::U16(0x1234), Element::U16(0x0001)]);
+        assert_eq!(a.iter().len(), 2);
+    }
+
+    #[cfg(feature = "alloc")]
+    #[test]
+    fn from_slice_round_trips_through_iter() {
+        let a = TypedArray::from_slice::<i32>(&[-1, 2, -3], Endianness::Little);
+        assert_eq!(a.element_type(), ElementType::I32);
+        let vals: alloc::vec::Vec<i64> = a.iter().map(Element::to_i64).collect();
+        assert_eq!(vals, alloc::vec![-1, 2, -3]);
     }
 }

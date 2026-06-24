@@ -2,18 +2,20 @@
 name = "minicbor-typed-arrays"
 authors = ["Lucas Chiesa <lucas.chiesa@gmail.com>", "Joaquin de Andres <xcancerberox@gmail.com>"]
 description = "RFC8746 typed arrays implementation for minicbor."
-version = "0.1.0"
+version = "0.2.0"
 license = "BlueOak-1.0.0"
 edition = "2021"
 
 [dependencies]
-minicbor = { version = "0.20.0" }
-half = { version = "1", default-features = false, optional = true }
+minicbor = { version = "2.2", default-features = false }
+half = { version = "2.7", default-features = false, optional = true }
 
 [dev-dependencies]
-test-case = "*"
-minicbor = { version = "0.20.0", features = ["std"] }
+test-case = "3"
+minicbor = { version = "2.2", features = ["std"] }
 
 [features]
-default = ["half"]
-half = ["minicbor/half", "dep:half"]
+default = ["std", "half"]
+std = ["alloc", "minicbor/std"]
+alloc = ["minicbor/alloc"]
+half = ["dep:half"]
