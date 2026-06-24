@@ -6,12 +6,10 @@ extern crate alloc;
 extern crate std;
 
 mod element;
-mod endianness;
 mod tag;
 mod typed_array;
 
-pub use element::{Element, ElementType, Scalar};
-pub use endianness::Endianness;
+pub use element::{Element, ElementType, Endianness, Scalar};
 #[cfg(feature = "half")]
 pub use half;
 #[cfg(feature = "alloc")]

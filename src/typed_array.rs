@@ -1,7 +1,6 @@
 #[cfg(feature = "alloc")]
 use crate::element::Scalar;
-use crate::element::{Element, ElementType};
-use crate::endianness::Endianness;
+use crate::element::{Element, ElementType, Endianness};
 use core::fmt;
 
 /// Error returned by [`TypedArray::new`] when the byte payload length is not a
@@ -60,6 +59,10 @@ impl<C: AsRef<[u8]>> TypedArray<C> {
         if len % width != 0 {
             return Err(InvalidLength { len, width });
         }
+        // Endianness is meaningless for single-byte elements, and their CBOR
+        // tag (`TypedArrayU8`/`U8Clamped`/`I8`) carries no byte order. Normalize
+        // to a canonical value so that `endianness()` and `PartialEq` are stable
+        // across an encode/decode round-trip (decoding always yields `Big`).
         let endianness = if width == 1 {
             Endianness::Big
         } else {

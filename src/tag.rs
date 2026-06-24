@@ -1,5 +1,4 @@
-use crate::element::ElementType;
-use crate::endianness::Endianness;
+use crate::element::{ElementType, Endianness};
 use minicbor::data::{IanaTag, Tag};
 use minicbor::decode::Error;
 
