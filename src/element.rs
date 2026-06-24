@@ -95,6 +95,20 @@ macro_rules! define_elements {
                 }
             }
 
+            /// The IANA tag for this element type in the given endianness.
+            ///
+            /// Single-byte types ignore `endianness` (both map to the same tag).
+            pub fn tag(self, endianness: Endianness) -> minicbor::data::IanaTag {
+                match (self, endianness) {
+                    $(
+                        $(#[$meta])*
+                        (ElementType::$variant, Endianness::Big) => $be,
+                        $(#[$meta])*
+                        (ElementType::$variant, Endianness::Little) => $le,
+                    )+
+                }
+            }
+
             /// Decode one width-sized chunk into an [`Element`].
             ///
             /// `chunk.len()` must equal `self.width()`.
@@ -173,6 +187,16 @@ mod tests {
         let le = ElementType::U16.decode_chunk(&[0x12, 0x34], Endianness::Little);
         assert_eq!(be, Element::U16(0x1234));
         assert_eq!(le, Element::U16(0x3412));
+    }
+
+    #[test]
+    fn tag_maps_endianness() {
+        use minicbor::data::IanaTag;
+        assert_eq!(ElementType::U8.tag(Endianness::Little), IanaTag::TypedArrayU8);
+        assert_eq!(ElementType::U8.tag(Endianness::Big), IanaTag::TypedArrayU8);
+        assert_eq!(ElementType::U32.tag(Endianness::Big), IanaTag::TypedArrayU32B);
+        assert_eq!(ElementType::U32.tag(Endianness::Little), IanaTag::TypedArrayU32L);
+        assert_eq!(ElementType::F64.tag(Endianness::Big), IanaTag::TypedArrayF64B);
     }
 
     #[test]
