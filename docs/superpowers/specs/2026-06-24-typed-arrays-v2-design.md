@@ -223,7 +223,7 @@ script runs, in order:
 
 Supporting files:
 - `.cargo-crap.toml` — CRAP threshold (start at default `30`, tune after first run).
-- `.github/workflows/rust.yml` — installs `llvm-tools-preview`, `cargo-llvm-cov`,
+- `.github/workflows/rust.yml` — installs `llvm-tools`, `cargo-llvm-cov`,
   `cargo-crap`, and the `thumbv7em-none-eabi` target, then runs `scripts/ci.sh`.
 
 CRAP = `comp(m)^2 * (1 - cov(m))^3 + comp(m)` per function; the gate fails CI when any
