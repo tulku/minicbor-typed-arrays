@@ -8,4 +8,7 @@ mod endianness;
 mod tag;
 mod typed_array;
 
+pub use element::{Element, ElementType, Scalar};
 pub use endianness::Endianness;
+#[cfg(feature = "half")]
+pub use half;
